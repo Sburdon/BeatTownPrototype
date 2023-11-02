@@ -20,6 +20,8 @@ public class GridMovement : MonoBehaviour
     private List<Vector3Int> chargePath = new List<Vector3Int>();
     private bool isPlayerTwoCharging = false;
     public Tilemap obstacleTilemap; // Assign this in the Unity editor
+    private bool endTurnMessageDisplayed = false;
+
 
     private void Start()
     {
@@ -37,6 +39,11 @@ public class GridMovement : MonoBehaviour
             StartCharging();
         }
 
+        if (isMoveMade && !endTurnMessageDisplayed)
+        {
+            Debug.Log("Player can end turn with Spacebar");
+            endTurnMessageDisplayed = true;
+        }
 
 
         if (Input.GetMouseButtonDown(0) && !isMoveMade)
@@ -52,7 +59,7 @@ public class GridMovement : MonoBehaviour
             }
         }
 
-        if (currentPlayerIndex == 0 && Input.GetKeyDown(KeyCode.P) && !isMoveMade)
+        if (currentPlayerIndex == 0 && Input.GetKeyDown(KeyCode.P))
         {
             isPlayerOneSpecialActive = true;
             Debug.Log("Player 1's special ability activated! Right-click a valid tile to move Player 2.");
@@ -68,7 +75,7 @@ public class GridMovement : MonoBehaviour
                 MoveOnlyPlayer2(gridPosition);
                 Debug.Log("Player 1 moved Player 2 to a new position!");
                 isPlayerOneSpecialActive = false;
-                isMoveMade = true;
+                
             }
         }
 
@@ -89,10 +96,7 @@ public class GridMovement : MonoBehaviour
             }
         }
 
-        if (isMoveMade)
-        {
-            Debug.Log("Player can end turn with Spacebar");
-        }
+        
 
         if (Input.GetKeyDown(KeyCode.Space) && isMoveMade)
         {
@@ -130,30 +134,51 @@ public class GridMovement : MonoBehaviour
     {
         isPlayerTwoCharging = false;
 
-        // Get the position of Player One
-        Vector3Int playerOnePos = tilemap.WorldToCell(players[0].transform.position);
-        Vector3Int targetPos = chargePath[chargePath.Count - 1]; // Default to the last tile of the charge path
+        Vector3Int playerPos = tilemap.WorldToCell(players[currentPlayerIndex].transform.position);
+        Vector3Int targetPos = playerPos;
 
         foreach (var tilePos in chargePath)
         {
-            if (tilePos == playerOnePos)
+            GameObject otherPlayer = currentPlayerIndex == 0 ? players[1] : players[0];
+            Vector3Int otherPlayerPos = tilemap.WorldToCell(otherPlayer.transform.position);
+
+            // Check for collision with the other player
+            if (tilePos == otherPlayerPos)
             {
                 Debug.Log("Player 2 collided with Player 1 and dealt 2 damage!");
-
-                // Assuming the charge path goes from right to left,
-                // place Player Two to the right of Player One
-                targetPos = new Vector3Int(playerOnePos.x + 1, playerOnePos.y, playerOnePos.z);
+                targetPos = new Vector3Int(otherPlayerPos.x + 1, otherPlayerPos.y, otherPlayerPos.z);
                 break;
             }
+            else if (obstacleTilemap.HasTile(tilePos)) // Check for obstacles
+            {
+                Debug.Log("Player 2's charge stopped by an obstacle!");
+                targetPos = new Vector3Int(tilePos.x + 1, tilePos.y, tilePos.z); // Stop before the obstacle
+                break;
+            }
+            targetPos = tilePos;
         }
 
-        // Move Player Two to the target position
-        players[1].transform.position = tilemap.GetCellCenterWorld(targetPos);
+        foreach (var tilePos in chargePath)
+        {
+            if (!tilemap.HasTile(tilePos))
+            {
+                // Skip if the tile doesn't exist in the main tilemap
+                continue;
+            }
 
-        // Reset the colored tiles
-        ResetChargeTiles();
+            // Move Player 2 to the target position
+            players[currentPlayerIndex].transform.position = tilemap.GetCellCenterWorld(targetPos);
 
-        isCharging = false;
+            // Reset the colored tiles
+            ResetChargeTiles();
+            isCharging = false;
+        }
+    }
+
+
+    private bool IsObstacleTile(Vector3Int tilePos)
+    {
+        return obstacleTilemap.HasTile(tilePos);
     }
 
 
@@ -214,6 +239,8 @@ public class GridMovement : MonoBehaviour
     {
         currentPlayerIndex = (currentPlayerIndex + 1) % players.Length;
         isMoveMade = false;
+        endTurnMessageDisplayed = false; // Reset the flag
         Debug.Log($"Player {currentPlayerIndex + 1}'s turn");
     }
+
 }
